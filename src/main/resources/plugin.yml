@@ -1,0 +1,16 @@
+name: Sentinel
+version: 1.0
+main: dev.ethancao.anticheat.Sentinel
+api-version: '1.21'
+author: EthanCao
+commands:
+  ac:
+    description: AntiCheat admin command
+    usage: /ac
+    permission: sentinel.admin
+permissions:
+  sentinel.admin:
+    description: Allows use of AntiCheat admin commands
+    default: op
+
+
