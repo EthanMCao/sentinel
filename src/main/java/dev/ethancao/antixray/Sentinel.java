@@ -244,6 +244,17 @@ public final class Sentinel extends JavaPlugin implements Listener {
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
+        
+        // Skip detection for staff and non-survival players
+        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE || 
+            player.getGameMode() == org.bukkit.GameMode.SPECTATOR) {
+            return; // Don't track creative/spectator mode
+        }
+        
+        if (player.isOp() || player.hasPermission("sentinel.admin")) {
+            return; // Don't track ops or admins
+        }
+        
         Material blockType = event.getBlock().getType();
         
         // Get or create stats for this player
