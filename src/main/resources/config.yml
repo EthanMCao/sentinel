@@ -1,0 +1,53 @@
+# Sentinel Anti-Xray Configuration
+# Customize detection thresholds and logging behavior
+
+# Detection settings
+detection:
+  # Pure ore mining detection - catches xray users mining only ores without stone
+  pure-ore-mining:
+    enabled: true
+    valuable-ores-threshold: 5      # Minimum valuable ores mined to trigger
+    stone-threshold: 20              # Maximum stone allowed before flagging
+    suspicion-points: 20             # Points added when detected
+  
+  # Low stone mining detection - catches cautious xray users with some stone mining
+  low-stone-mining:
+    enabled: true
+    valuable-ores-threshold: 8      # Minimum valuable ores mined to trigger
+    stone-threshold: 50              # Maximum stone allowed before flagging
+    suspicion-points: 15             # Points added when detected
+  
+  # High ratio detection - catches players with abnormally high diamond:stone ratios
+  high-ratio:
+    enabled: true
+    stone-baseline: 50               # Minimum stone blocks before checking ratios
+    diamond-ratio-very-high: 0.05    # Ratio threshold for very high alert (1 diamond per 20 stone)
+    diamond-ratio-high: 0.02         # Ratio threshold for high alert (1 diamond per 50 stone)
+    suspicion-points-very-high: 10   # Points for very high ratio
+    suspicion-points-high: 5         # Points for high ratio
+
+# Logging settings
+logging:
+  # Console logging (shows warnings in server console)
+  console:
+    enabled: true
+    log-suspicious-activity: true
+  
+  # JSON file logging (SIEM-compatible logs)
+  json-file:
+    enabled: true
+    file-path: "logs/antixray.jsonl"  # Relative to plugins/Sentinel/ directory
+
+# Ore tracking - which ores are considered "valuable" for detection
+valuable-ores:
+  diamond: true
+  emerald: true
+  gold: true
+  iron: false    # Too common, not tracked for suspicion
+  coal: false    # Too common, not tracked for suspicion
+  lapis: false   # Moderately common, not tracked
+  redstone: false  # Moderately common, not tracked
+
+# Manual flag settings
+manual-flags:
+  suspicion-points-per-flag: 15  # Points added when admin uses /sentinel flag

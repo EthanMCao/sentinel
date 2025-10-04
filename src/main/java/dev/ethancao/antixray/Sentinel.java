@@ -1,5 +1,6 @@
 package dev.ethancao.antixray;
 
+import dev.ethancao.antixray.config.ConfigManager;
 import dev.ethancao.antixray.logging.JsonLogger;
 import dev.ethancao.antixray.logging.XrayEvent;
 import dev.ethancao.antixray.tracking.MiningStats;
@@ -21,10 +22,15 @@ public final class Sentinel extends JavaPlugin implements Listener {
     
     private PlayerDataManager dataManager;
     private JsonLogger jsonLogger;
+    private ConfigManager configManager;
 
     @Override
     public void onEnable() {
         getLogger().info("Sentinel Anti-Xray plugin enabled!");
+        
+        // Initialize configuration
+        this.configManager = new ConfigManager(this);
+        getLogger().info("Configuration loaded!");
         
         // Initialize data manager
         this.dataManager = new PlayerDataManager();
@@ -227,7 +233,7 @@ public final class Sentinel extends JavaPlugin implements Listener {
         
         MiningStats stats = dataManager.getOrCreateStats(target.getUniqueId(), target.getName());
         stats.addManualFlag();
-        stats.addSuspicionPoints(15); // Add suspicion points for manual flag
+        stats.addSuspicionPoints(configManager.getManualFlagSuspicionPoints());
         
         sender.sendMessage(ChatColor.GREEN + "Manually flagged " + target.getName() + " (Total flags: " + stats.getManualFlags() + ")");
         getLogger().warning(sender.getName() + " manually flagged " + target.getName() + " for suspicious activity");
@@ -300,7 +306,13 @@ public final class Sentinel extends JavaPlugin implements Listener {
      */
     private void checkSuspiciousActivity(Player player, MiningStats stats, String oreType) {
         int totalStone = stats.getTotalStoneBlocks();
-        int valuableOres = stats.getDiamondsMined() + stats.getEmeraldsMined() + stats.getGoldMined();
+        
+        // Calculate valuable ores based on config
+        int valuableOres = 0;
+        if (configManager.isDiamondValuable()) valuableOres += stats.getDiamondsMined();
+        if (configManager.isEmeraldValuable()) valuableOres += stats.getEmeraldsMined();
+        if (configManager.isGoldValuable()) valuableOres += stats.getGoldMined();
+        
         double diamondRatio = stats.getDiamondToStoneRatio();
         
         boolean suspicious = false;
@@ -308,32 +320,39 @@ public final class Sentinel extends JavaPlugin implements Listener {
         int suspicionPoints = 0;
         
         // DETECTION 1: Pure ore mining (catches xray users mining without stone)
-        // This detects players who go straight to ores without breaking through rock
-        if (valuableOres >= 5 && totalStone < 20) {
+        if (configManager.isPureOreMiningEnabled() && 
+            valuableOres >= configManager.getPureOreMiningValuableOresThreshold() && 
+            totalStone < configManager.getPureOreMiningStoneThreshold()) {
+            
             suspicious = true;
             reason = String.format("Pure ore mining detected: %d valuable ores with only %d stone (likely xray)", 
                 valuableOres, totalStone);
-            suspicionPoints = 20; // High suspicion - this is very unnatural
+            suspicionPoints = configManager.getPureOreMiningSuspicionPoints();
         }
-        // DETECTION 2: Extremely suspicious - many ores with very little stone (but some mining)
-        else if (valuableOres >= 8 && totalStone < 50) {
+        // DETECTION 2: Low stone mining (many ores with very little stone but some mining)
+        else if (configManager.isLowStoneMiningEnabled() && 
+                 valuableOres >= configManager.getLowStoneMiningValuableOresThreshold() && 
+                 totalStone < configManager.getLowStoneMiningStoneThreshold()) {
+            
             suspicious = true;
             reason = String.format("Very low stone mining: %d valuable ores with only %d stone", 
                 valuableOres, totalStone);
-            suspicionPoints = 15;
+            suspicionPoints = configManager.getLowStoneMiningSuspicionPoints();
         }
-        // DETECTION 3: High ratio detection (original - requires 50+ stone baseline)
-        else if (totalStone >= 50) {
-            if (diamondRatio > 0.05) { // More than 1 diamond per 20 stone
+        // DETECTION 3: High ratio detection (requires stone baseline)
+        else if (configManager.isHighRatioEnabled() && 
+                 totalStone >= configManager.getHighRatioStoneBaseline()) {
+            
+            if (diamondRatio > configManager.getHighRatioDiamondVeryHigh()) {
                 suspicious = true;
                 reason = String.format("Very high diamond ratio: %.3f (diamonds: %d, stone: %d)", 
                     diamondRatio, stats.getDiamondsMined(), totalStone);
-                suspicionPoints = 10;
-            } else if (diamondRatio > 0.02) { // More than 1 diamond per 50 stone
+                suspicionPoints = configManager.getHighRatioSuspicionPointsVeryHigh();
+            } else if (diamondRatio > configManager.getHighRatioDiamondHigh()) {
                 suspicious = true;
                 reason = String.format("High diamond ratio: %.3f (diamonds: %d, stone: %d)", 
                     diamondRatio, stats.getDiamondsMined(), totalStone);
-                suspicionPoints = 5;
+                suspicionPoints = configManager.getHighRatioSuspicionPointsHigh();
             }
         }
         
@@ -341,32 +360,36 @@ public final class Sentinel extends JavaPlugin implements Listener {
         if (suspicious) {
             stats.addSuspicionPoints(suspicionPoints);
             
-            // Console log
-            getLogger().warning(String.format("[SUSPICIOUS] %s mined %s - %s (Score: %d, +%d points)",
-                player.getName(), oreType, reason, stats.getSuspicionScore(), suspicionPoints));
+            // Console log (if enabled)
+            if (configManager.isConsoleLoggingEnabled()) {
+                getLogger().warning(String.format("[SUSPICIOUS] %s mined %s - %s (Score: %d, +%d points)",
+                    player.getName(), oreType, reason, stats.getSuspicionScore(), suspicionPoints));
+            }
             
-            // JSON log
-            String detectionType = suspicionPoints == 20 ? "pure_ore_mining" :
-                                   suspicionPoints == 15 ? "low_stone_mining" :
-                                   "high_ratio";
-            
-            XrayEvent event = new XrayEvent(
-                jsonLogger.getCurrentTimestamp(),
-                player.getName(),
-                player.getUniqueId().toString(),
-                oreType.toLowerCase() + "_mine",
-                "UNKNOWN", // We don't track exact ore type in this context
-                player.getLocation(),
-                stats.getTotalStoneBlocks(),
-                stats.getDiamondsMined(),
-                stats.getTotalOresMined(),
-                stats.getDiamondToStoneRatio(),
-                stats.getSuspicionScore(),
-                detectionType,
-                reason
-            );
-            
-            jsonLogger.logEvent(event);
+            // JSON log (if enabled)
+            if (configManager.isJsonLoggingEnabled()) {
+                String detectionType = suspicionPoints == configManager.getPureOreMiningSuspicionPoints() ? "pure_ore_mining" :
+                                       suspicionPoints == configManager.getLowStoneMiningSuspicionPoints() ? "low_stone_mining" :
+                                       "high_ratio";
+                
+                XrayEvent event = new XrayEvent(
+                    jsonLogger.getCurrentTimestamp(),
+                    player.getName(),
+                    player.getUniqueId().toString(),
+                    oreType.toLowerCase() + "_mine",
+                    "UNKNOWN",
+                    player.getLocation(),
+                    stats.getTotalStoneBlocks(),
+                    stats.getDiamondsMined(),
+                    stats.getTotalOresMined(),
+                    stats.getDiamondToStoneRatio(),
+                    stats.getSuspicionScore(),
+                    detectionType,
+                    reason
+                );
+                
+                jsonLogger.logEvent(event);
+            }
         }
     }
 }
