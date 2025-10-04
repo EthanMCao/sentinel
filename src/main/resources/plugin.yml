@@ -1,16 +1,18 @@
 name: Sentinel
 version: 1.0
-main: dev.ethancao.anticheat.Sentinel
+main: dev.ethancao.antixray.Sentinel
 api-version: '1.21'
 author: EthanCao
+description: Anti-xray detection plugin for Paper 1.21.8
+
 commands:
-  ac:
-    description: AntiCheat admin command
-    usage: /ac
+  sentinel:
+    description: Sentinel anti-xray admin commands
+    usage: /sentinel <stats|reset|flag> [player]
     permission: sentinel.admin
+    aliases: [sntl]
+
 permissions:
   sentinel.admin:
-    description: Allows use of AntiCheat admin commands
+    description: Allows use of Sentinel admin commands
     default: op
-
-
