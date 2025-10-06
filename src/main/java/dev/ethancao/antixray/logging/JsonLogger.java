@@ -38,9 +38,8 @@ public class JsonLogger {
         // Initialize log file
         this.logFile = new File(logsDir, "antixray.jsonl");
         
-        // Create Gson instance for JSON serialization
+        // Create Gson instance for JSON serialization (single-line for JSONL)
         this.gson = new GsonBuilder()
-                .setPrettyPrinting()
                 .disableHtmlEscaping()
                 .create();
         
